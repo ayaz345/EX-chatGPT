@@ -10,7 +10,7 @@ from queue import PriorityQueue as PQ
 import jieba
 program_path = os.path.realpath(__file__)
 program_dir = os.path.dirname(program_path)
-with open(program_dir+'/cn_stopwords.txt', encoding='utf-8') as f:
+with open(f'{program_dir}/cn_stopwords.txt', encoding='utf-8') as f:
     zh_stopwords = [line.strip() for line in f]
 def remove_stopwords(text):
     zh_words = jieba.cut(text, cut_all=False)
@@ -56,7 +56,7 @@ def clean_string(input_str):
         '﹂': ' ',
         '、': ' ',
     }
-    pattern = re.compile('|'.join(re.escape(key) for key in symbol_dict.keys()))
+    pattern = re.compile('|'.join(re.escape(key) for key in symbol_dict))
     res = pattern.sub(lambda x: symbol_dict[x.group()], res)
     # Remove consecutive periods
     # res = re.sub(r'\.+', '.', res)
@@ -189,14 +189,13 @@ class GoogleSearchAPI(MetaAPI):
         call_url = self.base_url + urllib.parse.urlencode(params)
         try:
             res = self.session.get(call_url)
-            if "items" in res.json():
-                items = res.json()["items"]
-                filter_data = [
-                    clean_string(item["title"] + ": " + item["snippet"]) for item in items
-                ]
-                return ('\n').join(filter_data)
-            else:
+            if "items" not in res.json():
                 return []
+            items = res.json()["items"]
+            filter_data = [
+                clean_string(item["title"] + ": " + item["snippet"]) for item in items
+            ]
+            return ('\n').join(filter_data)
         except requests.exceptions.HTTPError as err:
             if err.response.status_code == 403:  # API key error
                 self.trash_api_keys.put((time.time(), (GOOGLE_API_KEY,GOOGLE_SEARCH_ENGINE_ID)))
@@ -253,19 +252,23 @@ class WolframAPI(MetaAPI):
         try:
             responseFromWolfram = self.session.get(
                 self.base_url, params=params, headers=headers)
-            if  'queryresult' in responseFromWolfram.json() and 'pods' in responseFromWolfram.json()['queryresult']:
-                pods = responseFromWolfram.json()['queryresult']['pods'][:num_results]
-                pods_id = [pod["id"]for pod in pods]
-                subplots = [(pod['subpods']) for pod in pods]
-                pods_plaintext = []
-                for subplot in subplots:
-                    text = '\n'.join([c['plaintext'] for c in subplot])
-                    pods_plaintext.append(text)
-                # pods_plaintext = ['\n'.join(pod['subpods']['plaintext']) for pod in pods]
-                res = [pods_id[i] + ": " + pods_plaintext[i]  for i in range(len(pods_plaintext)) if pods_plaintext[i].strip() != '']
-                return res
-            else:
+            if (
+                'queryresult' not in responseFromWolfram.json()
+                or 'pods' not in responseFromWolfram.json()['queryresult']
+            ):
                 return []
+            pods = responseFromWolfram.json()['queryresult']['pods'][:num_results]
+            pods_id = [pod["id"]for pod in pods]
+            subplots = [(pod['subpods']) for pod in pods]
+            pods_plaintext = [
+                '\n'.join([c['plaintext'] for c in subplot])
+                for subplot in subplots
+            ]
+            return [
+                f"{pods_id[i]}: {pods_plaintext[i]}"
+                for i in range(len(pods_plaintext))
+                if pods_plaintext[i].strip() != ''
+            ]
         except requests.exceptions.HTTPError as err:
             if err.response.status_code == 403:  # API key error
                 self.trash_api_keys.put((time.time(),(APPID)))

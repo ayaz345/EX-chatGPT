@@ -1,6 +1,7 @@
 """
 A simple wrapper for the official ChatGPT API
 """
+
 import json
 import os
 import threading
@@ -20,7 +21,7 @@ ENCODER = tiktoken.get_encoding("gpt2")
 program_path = os.path.realpath(__file__)
 program_dir = os.path.dirname(program_path)
 apiTime = 20
-chatHistoryPath = program_dir + '/chatHistory.json'
+chatHistoryPath = f'{program_dir}/chatHistory.json'
 hint_token_exceed = json.loads(
     json.dumps(
         {
@@ -42,7 +43,7 @@ hint_dialog_sum = json.loads(
         },
         ensure_ascii=False))
 APICallList = []
-backup_dir = program_dir + "/backup"
+backup_dir = f"{program_dir}/backup"
 
 
 class ExChatGPT:
@@ -171,7 +172,7 @@ class ExChatGPT:
         """
         last_dialog = self.conversation[convo_id][-1]
         query = str(last_dialog['content'])
-        if (len(ENCODER.encode(str(query))) > self.max_tokens):
+        if len(ENCODER.encode(query)) > self.max_tokens:
             query = query[:int(1.5 * self.max_tokens)]
         while (len(ENCODER.encode(str(query))) > self.max_tokens):
             query = query[:self.decrease_step]
@@ -244,8 +245,7 @@ class ExChatGPT:
             if not delta:
                 continue
             if "content" in delta:
-                content = delta["content"]
-                yield content
+                yield delta["content"]
 
     def ask(self,
             prompt: str,
@@ -313,14 +313,9 @@ class ExChatGPT:
         input = ""
         role = ""
         for conv in self.conversation[convo_id]:
-            if (conv["role"] == 'user'):
-                role = 'User'
-            else:
-                role = 'ChatGpt'
-            input += role + ' : ' + conv['content'] + '\n'
-        with open(program_dir + "/prompts/conversationSummary.txt",
-                  "r",
-                  encoding='utf-8') as f:
+            role = 'User' if (conv["role"] == 'user') else 'ChatGpt'
+            input += f'{role} : ' + conv['content'] + '\n'
+        with open(f"{program_dir}/prompts/conversationSummary.txt", "r", encoding='utf-8') as f:
             prompt = f.read()
         if (self.token_str(str(input) + prompt) > self.max_tokens):
             input = input[self.token_str(str(input)) - self.max_tokens:]
